@@ -1,0 +1,12 @@
+syntax = "proto3";
+package errors;
+
+option go_package = "github.com/l2cup/kids2/internal/proto/errors";
+
+message Error {
+  string message = 1;
+  string type = 2;
+  int32 code = 3;
+  string internal_error = 4;
+  string service_name = 5;
+}

@@ -1,0 +1,22 @@
+{
+  "node_count": 2,
+  "clique": false,
+  "nodes": [
+    {
+      "port": 5000,
+      "ip_addr": "localhost",
+      "id": 0,
+      "connected_nodes": [
+        1
+      ]
+    },
+    {
+      "port": 5100,
+      "ip_addr": "localhost",
+      "id": 1,
+      "connected_nodes": [
+        0
+      ]
+    }
+  ]
+}

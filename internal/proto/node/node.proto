@@ -1,0 +1,26 @@
+syntax = "proto3";
+
+option go_package = "github.com/l2cup/kids2/internal/proto/node";
+import "google/protobuf/empty.proto";
+
+package node;
+
+message NetworkInfo {
+	uint64 id = 1;
+	string ip_addr = 2;
+	int32 port = 3;
+}
+
+message Configuration {
+	NetworkInfo network_info = 1;
+	uint64 TotalNodeCount = 2;
+	repeated NetworkInfo connected_nodes = 3;
+}
+
+service Node {
+	rpc Introduce(NetworkInfo) returns (NetworkInfo);
+}
+
+service Bootstrap {
+	rpc Register(google.protobuf.Empty) returns (Configuration);
+}
