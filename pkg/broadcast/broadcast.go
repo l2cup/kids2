@@ -53,7 +53,7 @@ func (b *Broadcast) broadcastTransaction(message *Message, node *network.Info) {
 		)
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), 40*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
 	client := nodepb.NewNodeClient(conn)
@@ -76,7 +76,7 @@ func (b *Broadcast) broadcastSnapshotState(message *Message, node *network.Info)
 		)
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), 40*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
 	client := nodepb.NewNodeClient(conn)
@@ -99,7 +99,7 @@ func (b *Broadcast) broadcastSnapshotRequest(message *Message, node *network.Inf
 		)
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), 40*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
 	client := nodepb.NewNodeClient(conn)

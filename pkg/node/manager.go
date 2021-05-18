@@ -2,7 +2,6 @@ package node
 
 import (
 	"context"
-	"math/rand"
 	"time"
 
 	"github.com/l2cup/kids2/internal/log"
@@ -30,7 +29,7 @@ func NewManager(logger *log.Logger, bootstrapInfo *network.Info) *Manager {
 
 func (m *Manager) NewNode() *Node {
 	node := &Node{
-		bitcakeBalance: uint64(1000 + rand.Intn(5000)),
+		bitcakeBalance: uint64(1000),
 		logger:         m.logger,
 		bootstrapInfo:  m.bootstrapInfo,
 		vclock:         vc.New(),

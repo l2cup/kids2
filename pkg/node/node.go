@@ -416,12 +416,12 @@ func (n *Node) finishSnapshot(token string) {
 	}
 
 	global := uint64(0)
-	for _, v := range states {
+	for k, v := range states {
 		global += v.BitcakeBalance
 		for ks, vs := range v.Sent {
 			for _, smsg := range vs {
 				has := false
-				for _, rmsg := range states[ks].Recd[ks] {
+				for _, rmsg := range states[ks].Recd[k] {
 					if rmsg.ID == smsg.ID {
 						has = true
 						break

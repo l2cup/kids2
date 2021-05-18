@@ -91,7 +91,7 @@ func (vc *VectorClock) IsDescendantOrEqual(other *VectorClock) bool {
 	defer vc.mutex.Unlock()
 	vc.mutex.Lock()
 
-	if len(other.vclock) > len(other.vclock) {
+	if len(other.vclock) > len(vc.vclock) {
 		return false
 	}
 

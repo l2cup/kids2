@@ -28,7 +28,7 @@ func main() {
 		nodes[0].BroadcastTransaction(context.Background(), 4, 100)
 		nodes[0].BroadcastTransaction(context.Background(), 4, 300)
 		nodes[0].BroadcastTransaction(context.Background(), 4, 100)
-		//nodes[1].BroadcastSnapshotRequest(context.Background())
+		nodes[1].BroadcastSnapshotRequest(context.Background())
 	}()
 	go func() {
 		nodes[2].BroadcastTransaction(context.Background(), 3, 300)
