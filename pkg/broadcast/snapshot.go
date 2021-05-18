@@ -45,6 +45,9 @@ func (s *Snapshot) GetStates() (map[uint64]*State, errors.Error) {
 }
 
 func (s *Snapshot) Finished() bool {
+	defer s.statesMutex.Unlock()
+	s.statesMutex.Lock()
+
 	return s.Waiting == s.Got
 }
 
@@ -97,7 +100,7 @@ func (r *SnapshotRequest) Proto() *nodepb.SnapshotRequest {
 	}
 }
 
-func RequestFromProto(req *nodepb.SnapshotRequest) *SnapshotRequest {
+func SnapshotRequestFromProto(req *nodepb.SnapshotRequest) *SnapshotRequest {
 	return &SnapshotRequest{
 		Token: req.Token,
 	}

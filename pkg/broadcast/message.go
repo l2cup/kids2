@@ -94,6 +94,11 @@ func MessageFromProto(msgpb *nodepb.Message) *Message {
 		msg.Data = SnapshotStateFromProto(x.SnapshotState)
 		return msg
 	}
+	if x, ok := t.(*nodepb.Message_SnapshotRequest); ok {
+		msg.Type = TypeSnapshotRequest
+		msg.Data = SnapshotRequestFromProto(x.SnapshotRequest)
+		return msg
+	}
 
 	return msg
 }

@@ -3,10 +3,9 @@ package node
 import (
 	"context"
 	"fmt"
-	"math/rand"
-	"sync"
 	"sync/atomic"
-	"time"
+
+	"github.com/sasha-s/go-deadlock"
 
 	"github.com/google/uuid"
 	"github.com/l2cup/kids2/internal/errors"
@@ -25,28 +24,27 @@ type Node struct {
 	broadcast *broadcast.Broadcast
 
 	bitcakeBalance uint64
-	//bitcakeMutex   sync.Mutex
+	//bitcakeMutex   deadlock.Mutex
 
 	vclock *vc.VectorClock
 
-	sent      map[uint64]broadcast.Messages
-	sentMutex sync.Mutex
+	sent map[uint64]broadcast.Messages
+	recd map[uint64]broadcast.Messages
 
-	recd      map[uint64]broadcast.Messages
-	recdMutex sync.Mutex
+	stateMutex deadlock.Mutex
 
 	processed      map[uint64]broadcast.Messages
-	processedMutex sync.Mutex
+	processedMutex deadlock.Mutex
 
 	commited uint64
 
-	bufferMutex sync.Mutex
+	bufferMutex deadlock.Mutex
 	buffer      []*broadcast.Message
 
 	snapshots     broadcast.Snapshots
-	snapshotMutex sync.Mutex
+	snapshotMutex deadlock.Mutex
 
-	broadcastLock sync.Mutex
+	broadcastLock deadlock.Mutex
 
 	bootstrapInfo  *network.Info
 	networkInfo    *network.Info
@@ -55,13 +53,10 @@ type Node struct {
 }
 
 func (n *Node) State() *broadcast.State {
-	defer n.recdMutex.Unlock()
-	defer n.sentMutex.Unlock()
-	n.recdMutex.Lock()
-	n.sentMutex.Lock()
-
 	sent := make(map[uint64]broadcast.Messages, len(n.sent))
 	recd := make(map[uint64]broadcast.Messages, len(n.recd))
+
+	n.stateMutex.Lock()
 	for k, v := range n.sent {
 		sent[k] = append(sent[k], v...)
 	}
@@ -69,6 +64,7 @@ func (n *Node) State() *broadcast.State {
 	for k, v := range n.recd {
 		recd[k] = append(recd[k], v...)
 	}
+	n.stateMutex.Unlock()
 
 	bitcakes := atomic.LoadUint64(&n.bitcakeBalance)
 
@@ -80,11 +76,9 @@ func (n *Node) State() *broadcast.State {
 }
 
 func (n *Node) BroadcastSnapshotRequest(ctx context.Context) errors.Error {
-	defer n.snapshotMutex.Unlock()
-	n.snapshotMutex.Lock()
-
 	defer n.broadcastLock.Unlock()
 	n.broadcastLock.Lock()
+	n.logger.Debug("snapshot request took broadcast lock")
 
 	for _, v := range n.snapshots {
 		if !v.Finished() {
@@ -96,6 +90,8 @@ func (n *Node) BroadcastSnapshotRequest(ctx context.Context) errors.Error {
 	}
 
 	token := uuid.New().String()
+
+	n.snapshotMutex.Lock()
 	n.snapshots[token] = &broadcast.Snapshot{
 		States:  make(map[uint64]*broadcast.State, n.totalNodeCount),
 		Waiting: n.totalNodeCount,
@@ -103,10 +99,10 @@ func (n *Node) BroadcastSnapshotRequest(ctx context.Context) errors.Error {
 
 	state := n.State()
 	n.snapshots[token].AddState(state, n.networkInfo.ID)
+	n.snapshotMutex.Unlock()
 
 	vc := n.vclock.Copy()
 	time, _ := vc.TimeUint64(n.networkInfo.ID)
-
 	msg := &broadcast.Message{
 		ID:     time,
 		From:   n.networkInfo.ID,
@@ -118,19 +114,21 @@ func (n *Node) BroadcastSnapshotRequest(ctx context.Context) errors.Error {
 		},
 	}
 
-	defer n.processedMutex.Unlock()
-	n.processedMutex.Lock()
+	n.logger.Debug("broadcasting snapshot request", "msg", msg)
 
+	n.processedMutex.Lock()
 	n.processed[n.networkInfo.ID] = append(n.processed[n.networkInfo.ID], msg)
+	n.processedMutex.Unlock()
 
 	n.broadcast.Broadcast(msg, n.connectedNodes)
+
+	n.vclock.TickUint64(n.networkInfo.ID)
 	return errors.Nil()
 }
 
 func (n *Node) BroadcastTransaction(ctx context.Context, to uint64, change uint64) errors.Error {
 	defer n.broadcastLock.Unlock()
 	n.broadcastLock.Lock()
-
 	connected := false
 	for _, node := range n.connectedNodes {
 		if node.ID == to {
@@ -181,63 +179,63 @@ func (n *Node) BroadcastTransaction(ctx context.Context, to uint64, change uint6
 	}
 
 	n.logger.Debug("broadcasting message to nodes", "msg", msg, "nodes", n.connectedNodes)
+
+	n.stateMutex.Lock()
+	n.sent[msg.To] = append(n.sent[msg.To], msg)
+	n.stateMutex.Unlock()
+
+	n.processedMutex.Lock()
+	n.processed[n.networkInfo.ID] = append(n.processed[n.networkInfo.ID], msg)
+	n.processedMutex.Unlock()
+
 	n.broadcast.Broadcast(msg, n.connectedNodes)
 
-	defer n.sentMutex.Unlock()
-	n.sentMutex.Lock()
-
-	n.sent[msg.To] = append(n.sent[msg.To], msg)
-
-	defer n.processedMutex.Unlock()
-	n.processedMutex.Lock()
-
-	n.processed[n.networkInfo.ID] = append(n.processed[n.networkInfo.ID], msg)
-
 	n.vclock.TickUint64(n.networkInfo.ID)
-
 	return errors.Nil()
 }
 
 func (n *Node) SendSnapshot(ctx context.Context, msgpb *nodepb.Message) (*emptypb.Empty, error) {
-	defer n.bufferMutex.Unlock()
-	n.bufferMutex.Lock()
-
 	msg := broadcast.MessageFromProto(msgpb)
+
+	n.bufferMutex.Lock()
 	n.buffer = append(n.buffer, msg)
-	n.commit()
+	n.bufferMutex.Unlock()
+
+	go n.commit()
 
 	return &emptypb.Empty{}, nil
 }
 
 func (n *Node) RequestSnapshot(ctx context.Context, msgpb *nodepb.Message) (*emptypb.Empty, error) {
-	time.Sleep(time.Duration((rand.Intn(2500) + 50)) * time.Millisecond)
-
-	defer n.bufferMutex.Unlock()
-	n.bufferMutex.Lock()
+	//time.Sleep(time.Duration((rand.Intn(2500) + 50)) * time.Millisecond)
 
 	msg := broadcast.MessageFromProto(msgpb)
+
+	n.bufferMutex.Lock()
 	n.buffer = append(n.buffer, msg)
-	n.commit()
+	n.bufferMutex.Unlock()
+
+	go n.commit()
 
 	return &emptypb.Empty{}, nil
 }
 
 func (n *Node) Transaction(ctx context.Context, msgpb *nodepb.Message) (*emptypb.Empty, error) {
-	time.Sleep(time.Duration((rand.Intn(5000) + 50)) * time.Millisecond)
-
-	defer n.bufferMutex.Unlock()
-	n.bufferMutex.Lock()
+	//time.Sleep(time.Duration((rand.Intn(2500) + 50)) * time.Millisecond)
 
 	msg := broadcast.MessageFromProto(msgpb)
+	n.bufferMutex.Lock()
 	n.buffer = append(n.buffer, msg)
-	n.commit()
+	n.bufferMutex.Unlock()
+
+	go n.commit()
 
 	return &emptypb.Empty{}, nil
 }
 
 func (n *Node) commit() {
-	defer n.recdMutex.Unlock()
-	n.recdMutex.Lock()
+	defer n.bufferMutex.Unlock()
+	n.bufferMutex.Lock()
 
 	defer n.processedMutex.Unlock()
 	n.processedMutex.Lock()
@@ -268,6 +266,7 @@ func (n *Node) commit() {
 		}
 
 		n.logger.Debug("rebroadcasting message", "msg", msg, "node", n.networkInfo.ID)
+
 		n.broadcast.Broadcast(msg, n.connectedNodes)
 	}
 
@@ -300,7 +299,11 @@ func (n *Node) commitTx(msg *broadcast.Message) {
 	if msg.To == n.networkInfo.ID {
 		oldBalance := atomic.LoadUint64(&n.bitcakeBalance)
 		atomic.AddUint64(&n.bitcakeBalance, tx.Bitcakes)
+
+		n.stateMutex.Lock()
 		n.recd[msg.From] = append(n.recd[msg.From], msg)
+		n.stateMutex.Unlock()
+
 		n.logger.Debug(
 			"received transaction",
 			"node", n.networkInfo.ID,
@@ -332,43 +335,56 @@ func (n *Node) commitSnapshotRequest(msg *broadcast.Message) {
 
 	n.processed[msg.From] = append(n.processed[msg.From], msg)
 	n.vclock.TickUint64(msg.From)
-	n.broadcastSnapshotState(context.Background(), msg.From, req.Token)
+	n.logger.Debug(
+		"commited snapshot request",
+		"msg", msg,
+		"msg_vc", msg.VClock.Map(),
+		"node", n.networkInfo.ID,
+		"vc", n.vclock.Map(),
+	)
+
+	go n.broadcastSnapshotState(context.Background(), msg.From, req.Token)
 }
 
 func (n *Node) broadcastSnapshotState(ctx context.Context, to uint64, token string) {
-	defer n.snapshotMutex.Unlock()
-	n.snapshotMutex.Lock()
-
 	defer n.broadcastLock.Unlock()
 	n.broadcastLock.Lock()
+
+	n.logger.Debug("broadcast snapshot state got broadcast lock")
 
 	vc := n.vclock.Copy()
 	time, _ := vc.TimeUint64(n.networkInfo.ID)
 
+	n.logger.Debug("broadcast snapshot state copied vc")
+
 	state := n.State()
 	state.Token = token
+
+	n.logger.Debug("broadcast snapshot got token")
 
 	msg := &broadcast.Message{
 		ID:     time,
 		From:   n.networkInfo.ID,
 		To:     to,
 		VClock: vc,
-		Type:   broadcast.TypeSnapshotRequest,
+		Type:   broadcast.TypeSnapshotState,
 		Data:   state,
 	}
 
-	//defer n.processedMutex.Unlock()
-	//n.processedMutex.Lock()
-
+	n.processedMutex.Lock()
 	n.processed[n.networkInfo.ID] = append(n.processed[n.networkInfo.ID], msg)
+	n.processedMutex.Unlock()
+
 	n.broadcast.Broadcast(msg, n.connectedNodes)
+
+	n.vclock.TickUint64(n.networkInfo.ID)
 }
 
 func (n *Node) commitSnapshotState(msg *broadcast.Message) {
 	st, ok := msg.Data.(*broadcast.State)
 	if !ok {
 		n.logger.Error(
-			"couldn't commit snapshot stae, data type not snapshot state",
+			"couldn't commit snapshot state, data type not snapshot state",
 			"type", fmt.Sprintf("%T", msg.Data),
 		)
 	}
@@ -376,10 +392,17 @@ func (n *Node) commitSnapshotState(msg *broadcast.Message) {
 	n.processed[msg.From] = append(n.processed[msg.From], msg)
 	n.vclock.TickUint64(msg.From)
 
+	if msg.To != n.networkInfo.ID {
+		return
+	}
+
 	defer n.snapshotMutex.Unlock()
 	n.snapshotMutex.Lock()
 
 	n.snapshots[st.Token].AddState(st, msg.From)
+
+	n.logger.Debug("added state", "state", st, "from", msg.From)
+
 	if n.snapshots[st.Token].Finished() {
 		n.finishSnapshot(st.Token)
 	}

@@ -23,7 +23,7 @@
       "ip_addr": "localhost",
       "id": 2,
       "connected_nodes": [
-        1,0,3
+        1,3
       ]
     },
     {

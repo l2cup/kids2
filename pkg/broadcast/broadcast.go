@@ -2,6 +2,7 @@ package broadcast
 
 import (
 	"context"
+	"math/rand"
 	"time"
 
 	"github.com/l2cup/kids2/internal/log"
@@ -34,7 +35,11 @@ func (b *Broadcast) Broadcast(message *Message, nodes []*network.Info) {
 
 func (b *Broadcast) broadcast(message *Message, nodes []*network.Info, bf broadcastFunc) {
 	for _, node := range nodes {
-		go bf(message, node)
+		go func(node *network.Info) {
+			msRand := time.Duration(rand.Intn(3)*(rand.Intn(250)+rand.Intn(1200))) * time.Millisecond
+			time.Sleep(msRand)
+			bf(message, node)
+		}(node)
 	}
 }
 
@@ -48,7 +53,7 @@ func (b *Broadcast) broadcastTransaction(message *Message, node *network.Info) {
 		)
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), 40*time.Second)
 	defer cancel()
 
 	client := nodepb.NewNodeClient(conn)
@@ -71,7 +76,7 @@ func (b *Broadcast) broadcastSnapshotState(message *Message, node *network.Info)
 		)
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), 40*time.Second)
 	defer cancel()
 
 	client := nodepb.NewNodeClient(conn)
@@ -94,7 +99,7 @@ func (b *Broadcast) broadcastSnapshotRequest(message *Message, node *network.Inf
 		)
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), 40*time.Second)
 	defer cancel()
 
 	client := nodepb.NewNodeClient(conn)

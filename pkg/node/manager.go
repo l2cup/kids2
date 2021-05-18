@@ -37,6 +37,7 @@ func (m *Manager) NewNode() *Node {
 		sent:           make(map[uint64]broadcast.Messages),
 		recd:           make(map[uint64]broadcast.Messages),
 		processed:      make(map[uint64]broadcast.Messages),
+		snapshots:      make(map[string]*broadcast.Snapshot),
 		broadcast:      m.broadcast,
 	}
 
