@@ -17,10 +17,19 @@ message Transaction {
 	uint64 bitcakes = 1;
 }
 
-message Snapshot {
+message SnapshotRequest {
+	string token = 1;
+}
+
+message StateKVPairs {
+	uint64 key = 1;
+	repeated Message values = 2;
+}
+
+message State {
 	uint64 bitcakes = 1;
-	repeated uint64 sent = 2;
-	repeated uint64 received = 3;
+	repeated StateKVPairs sent = 2;
+	repeated StateKVPairs received = 3;
 }
 
 message Message {
@@ -30,13 +39,15 @@ message Message {
 	vc.VectorClock vclock = 4;
 	oneof type {
 		Transaction transaction = 5;
-		Snapshot snapshot = 6;
+		State snapshot_state = 6;
+		SnapshotRequest snapshot_request = 7;
 	}
 }
 
 service Node {
 	rpc Transaction(Message) returns (google.protobuf.Empty);
-	rpc Snapshot(Message) returns (google.protobuf.Empty);
+	rpc SendSnapshot(Message) returns (google.protobuf.Empty);
+	rpc RequestSnapshot(Message) returns (google.protobuf.Empty);
 }
 
 service Bootstrap {

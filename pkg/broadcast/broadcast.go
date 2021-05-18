@@ -25,8 +25,10 @@ func (b *Broadcast) Broadcast(message *Message, nodes []*network.Info) {
 	switch message.Type {
 	case TypeTransaction:
 		b.broadcast(message, nodes, b.broadcastTransaction)
-	case TypeSnapshot:
-		b.broadcast(message, nodes, b.broadcastSnapshot)
+	case TypeSnapshotState:
+		b.broadcast(message, nodes, b.broadcastSnapshotState)
+	case TypeSnapshotRequest:
+		b.broadcast(message, nodes, b.broadcastSnapshotRequest)
 	}
 }
 
@@ -59,11 +61,11 @@ func (b *Broadcast) broadcastTransaction(message *Message, node *network.Info) {
 	}
 }
 
-func (b *Broadcast) broadcastSnapshot(message *Message, node *network.Info) {
+func (b *Broadcast) broadcastSnapshotState(message *Message, node *network.Info) {
 	conn, cErr := network.DialGRPC(node)
 	if cErr.IsNotNil() {
 		b.logger.Error(
-			"[broadcast] couldn't broadcast snapshot",
+			"[broadcast] couldn't broadcast snapshot state",
 			"err", cErr,
 			"node", node,
 		)
@@ -73,10 +75,33 @@ func (b *Broadcast) broadcastSnapshot(message *Message, node *network.Info) {
 	defer cancel()
 
 	client := nodepb.NewNodeClient(conn)
-	_, err := client.Snapshot(ctx, message.Proto())
+	_, err := client.SendSnapshot(ctx, message.Proto())
 	if err != nil {
 		b.logger.Error(
 			"[broadcast] snapshot broadcast failed",
+			"err", err,
+		)
+	}
+}
+
+func (b *Broadcast) broadcastSnapshotRequest(message *Message, node *network.Info) {
+	conn, cErr := network.DialGRPC(node)
+	if cErr.IsNotNil() {
+		b.logger.Error(
+			"[broadcast] couldn't broadcast snapshot request",
+			"err", cErr,
+			"node", node,
+		)
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	client := nodepb.NewNodeClient(conn)
+	_, err := client.RequestSnapshot(ctx, message.Proto())
+	if err != nil {
+		b.logger.Error(
+			"[broadcast] snapshot request broadcast failed",
 			"err", err,
 		)
 	}

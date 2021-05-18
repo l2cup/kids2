@@ -8,8 +8,9 @@ import (
 type Type string
 
 const (
-	TypeTransaction Type = "TRASACTION"
-	TypeSnapshot    Type = "SNAPSHOT"
+	TypeTransaction     Type = "TRASACTION"
+	TypeSnapshotRequest Type = "SNAPSHOT_REQUEST"
+	TypeSnapshotState   Type = "SNAPSHOT_STATE"
 )
 
 type Message struct {
@@ -17,8 +18,9 @@ type Message struct {
 	From   uint64
 	To     uint64
 	VClock *vc.VectorClock
-	Type   Type
-	Data   interface{}
+
+	Type Type
+	Data interface{}
 }
 
 func (m *Message) Proto() *nodepb.Message {
@@ -32,8 +34,10 @@ func (m *Message) Proto() *nodepb.Message {
 	switch m.Type {
 	case TypeTransaction:
 		pbmsg.Type = m.protoTransaction()
-	case TypeSnapshot:
-		pbmsg.Type = m.protoSnapshot()
+	case TypeSnapshotState:
+		pbmsg.Type = m.protoSnapshotState()
+	case TypeSnapshotRequest:
+		pbmsg.Type = m.protoSnapshotRequest()
 	}
 	return pbmsg
 }
@@ -49,14 +53,25 @@ func (m *Message) protoTransaction() *nodepb.Message_Transaction {
 	}
 }
 
-func (m *Message) protoSnapshot() *nodepb.Message_Snapshot {
-	ss, ok := m.Data.(*Snapshot)
+func (m *Message) protoSnapshotState() *nodepb.Message_SnapshotState {
+	ss, ok := m.Data.(*State)
 	if !ok {
 		return nil
 	}
 
-	return &nodepb.Message_Snapshot{
-		Snapshot: ss.Proto(),
+	return &nodepb.Message_SnapshotState{
+		SnapshotState: ss.Proto(),
+	}
+}
+
+func (m *Message) protoSnapshotRequest() *nodepb.Message_SnapshotRequest {
+	sr, ok := m.Data.(*SnapshotRequest)
+	if !ok {
+		return nil
+	}
+
+	return &nodepb.Message_SnapshotRequest{
+		SnapshotRequest: sr.Proto(),
 	}
 }
 
@@ -74,9 +89,9 @@ func MessageFromProto(msgpb *nodepb.Message) *Message {
 		msg.Data = TransactionFromProto(x.Transaction)
 		return msg
 	}
-	if x, ok := t.(*nodepb.Message_Snapshot); ok {
-		msg.Type = TypeSnapshot
-		msg.Data = SnapshotFromProto(x.Snapshot)
+	if x, ok := t.(*nodepb.Message_SnapshotState); ok {
+		msg.Type = TypeSnapshotState
+		msg.Data = SnapshotStateFromProto(x.SnapshotState)
 		return msg
 	}
 
@@ -99,24 +114,36 @@ func TransactionFromProto(t *nodepb.Transaction) *Transaction {
 	}
 }
 
-type Snapshot struct {
-	Bitcakes uint64
-	Sent     []uint64
-	Received []uint64
+type Messages []*Message
+
+func (mm Messages) Proto() []*nodepb.Message {
+	mmpb := make([]*nodepb.Message, 0, len(mm))
+	for _, m := range mm {
+		mmpb = append(mmpb, m.Proto())
+	}
+
+	return mmpb
 }
 
-func (s *Snapshot) Proto() *nodepb.Snapshot {
-	return &nodepb.Snapshot{
-		Bitcakes: s.Bitcakes,
-		Sent:     s.Sent,
-		Received: s.Received,
+func MessagesFromProto(mmpb ...*nodepb.Message) Messages {
+	mm := make(Messages, 0, len(mmpb))
+	for _, m := range mmpb {
+		mm = append(mm, MessageFromProto(m))
 	}
+
+	return mm
 }
 
-func SnapshotFromProto(s *nodepb.Snapshot) *Snapshot {
-	return &Snapshot{
-		Bitcakes: s.GetBitcakes(),
-		Sent:     s.GetSent(),
-		Received: s.GetReceived(),
+func (mm Messages) Contains(msg *Message) bool {
+	for _, m := range mm {
+		if m.ID == msg.ID {
+			return true
+		}
 	}
+	return false
+}
+
+func (mm Messages) Append(msg *Message) Messages {
+	mm = append(mm, msg)
+	return mm
 }

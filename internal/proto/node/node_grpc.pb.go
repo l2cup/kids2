@@ -20,7 +20,8 @@ const _ = grpc.SupportPackageIsVersion7
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
 type NodeClient interface {
 	Transaction(ctx context.Context, in *Message, opts ...grpc.CallOption) (*emptypb.Empty, error)
-	Snapshot(ctx context.Context, in *Message, opts ...grpc.CallOption) (*emptypb.Empty, error)
+	SendSnapshot(ctx context.Context, in *Message, opts ...grpc.CallOption) (*emptypb.Empty, error)
+	RequestSnapshot(ctx context.Context, in *Message, opts ...grpc.CallOption) (*emptypb.Empty, error)
 }
 
 type nodeClient struct {
@@ -40,9 +41,18 @@ func (c *nodeClient) Transaction(ctx context.Context, in *Message, opts ...grpc.
 	return out, nil
 }
 
-func (c *nodeClient) Snapshot(ctx context.Context, in *Message, opts ...grpc.CallOption) (*emptypb.Empty, error) {
+func (c *nodeClient) SendSnapshot(ctx context.Context, in *Message, opts ...grpc.CallOption) (*emptypb.Empty, error) {
 	out := new(emptypb.Empty)
-	err := c.cc.Invoke(ctx, "/node.Node/Snapshot", in, out, opts...)
+	err := c.cc.Invoke(ctx, "/node.Node/SendSnapshot", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *nodeClient) RequestSnapshot(ctx context.Context, in *Message, opts ...grpc.CallOption) (*emptypb.Empty, error) {
+	out := new(emptypb.Empty)
+	err := c.cc.Invoke(ctx, "/node.Node/RequestSnapshot", in, out, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -54,7 +64,8 @@ func (c *nodeClient) Snapshot(ctx context.Context, in *Message, opts ...grpc.Cal
 // for forward compatibility
 type NodeServer interface {
 	Transaction(context.Context, *Message) (*emptypb.Empty, error)
-	Snapshot(context.Context, *Message) (*emptypb.Empty, error)
+	SendSnapshot(context.Context, *Message) (*emptypb.Empty, error)
+	RequestSnapshot(context.Context, *Message) (*emptypb.Empty, error)
 	mustEmbedUnimplementedNodeServer()
 }
 
@@ -65,8 +76,11 @@ type UnimplementedNodeServer struct {
 func (UnimplementedNodeServer) Transaction(context.Context, *Message) (*emptypb.Empty, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method Transaction not implemented")
 }
-func (UnimplementedNodeServer) Snapshot(context.Context, *Message) (*emptypb.Empty, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method Snapshot not implemented")
+func (UnimplementedNodeServer) SendSnapshot(context.Context, *Message) (*emptypb.Empty, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method SendSnapshot not implemented")
+}
+func (UnimplementedNodeServer) RequestSnapshot(context.Context, *Message) (*emptypb.Empty, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method RequestSnapshot not implemented")
 }
 func (UnimplementedNodeServer) mustEmbedUnimplementedNodeServer() {}
 
@@ -99,20 +113,38 @@ func _Node_Transaction_Handler(srv interface{}, ctx context.Context, dec func(in
 	return interceptor(ctx, in, info, handler)
 }
 
-func _Node_Snapshot_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+func _Node_SendSnapshot_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(Message)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
 	if interceptor == nil {
-		return srv.(NodeServer).Snapshot(ctx, in)
+		return srv.(NodeServer).SendSnapshot(ctx, in)
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: "/node.Node/Snapshot",
+		FullMethod: "/node.Node/SendSnapshot",
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(NodeServer).Snapshot(ctx, req.(*Message))
+		return srv.(NodeServer).SendSnapshot(ctx, req.(*Message))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _Node_RequestSnapshot_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(Message)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(NodeServer).RequestSnapshot(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/node.Node/RequestSnapshot",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(NodeServer).RequestSnapshot(ctx, req.(*Message))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -129,8 +161,12 @@ var Node_ServiceDesc = grpc.ServiceDesc{
 			Handler:    _Node_Transaction_Handler,
 		},
 		{
-			MethodName: "Snapshot",
-			Handler:    _Node_Snapshot_Handler,
+			MethodName: "SendSnapshot",
+			Handler:    _Node_SendSnapshot_Handler,
+		},
+		{
+			MethodName: "RequestSnapshot",
+			Handler:    _Node_RequestSnapshot_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},

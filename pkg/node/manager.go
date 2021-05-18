@@ -34,8 +34,9 @@ func (m *Manager) NewNode() *Node {
 		logger:         m.logger,
 		bootstrapInfo:  m.bootstrapInfo,
 		vclock:         vc.New(),
-		sent:           make(map[uint64][]*broadcast.Message),
-		recd:           make(map[uint64][]*broadcast.Message),
+		sent:           make(map[uint64]broadcast.Messages),
+		recd:           make(map[uint64]broadcast.Messages),
+		processed:      make(map[uint64]broadcast.Messages),
 		broadcast:      m.broadcast,
 	}
 
