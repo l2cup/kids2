@@ -38,5 +38,6 @@ func main() {
 	}()
 	go nodes[1].BroadcastTransaction(context.Background(), 0, 100)
 	go nodes[4].BroadcastTransaction(context.Background(), 3, 150)
+
 	select {}
 }

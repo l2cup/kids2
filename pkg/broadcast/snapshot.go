@@ -9,6 +9,7 @@ import (
 )
 
 type State struct {
+	Token          string
 	BitcakeBalance uint64
 	Sent           map[uint64]Messages
 	Recd           map[uint64]Messages
@@ -17,22 +18,22 @@ type State struct {
 type Snapshots map[string]*Snapshot
 
 type Snapshot struct {
-	States      []*State
+	States      map[uint64]*State
 	statesMutex sync.Mutex
 
 	Waiting uint64
 	Got     uint64
 }
 
-func (s *Snapshot) AddState(st *State) {
+func (s *Snapshot) AddState(st *State, ID uint64) {
 	defer s.statesMutex.Unlock()
 	s.statesMutex.Lock()
 
 	atomic.AddUint64(&s.Got, 1)
-	s.States = append(s.States, st)
+	s.States[ID] = st
 }
 
-func (s *Snapshot) GetStates() ([]*State, errors.Error) {
+func (s *Snapshot) GetStates() (map[uint64]*State, errors.Error) {
 	if !s.Finished() {
 		return nil, errors.New(
 			"snapshot not done",
@@ -49,6 +50,7 @@ func (s *Snapshot) Finished() bool {
 
 func (s *State) Proto() *nodepb.State {
 	return &nodepb.State{
+		Token:    s.Token,
 		Bitcakes: s.BitcakeBalance,
 		Sent:     MsgMapToKVStatePairs(s.Sent),
 		Received: MsgMapToKVStatePairs(s.Recd),
@@ -57,6 +59,7 @@ func (s *State) Proto() *nodepb.State {
 
 func SnapshotStateFromProto(s *nodepb.State) *State {
 	return &State{
+		Token:          s.GetToken(),
 		BitcakeBalance: s.GetBitcakes(),
 		Sent:           KVStatePairsToMap(s.GetSent()...),
 		Recd:           KVStatePairsToMap(s.GetReceived()...),

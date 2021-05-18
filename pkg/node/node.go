@@ -97,12 +97,12 @@ func (n *Node) BroadcastSnapshotRequest(ctx context.Context) errors.Error {
 
 	token := uuid.New().String()
 	n.snapshots[token] = &broadcast.Snapshot{
-		States:  make([]*broadcast.State, 0, n.totalNodeCount),
+		States:  make(map[uint64]*broadcast.State, n.totalNodeCount),
 		Waiting: n.totalNodeCount,
 	}
 
 	state := n.State()
-	n.snapshots[token].AddState(state)
+	n.snapshots[token].AddState(state, n.networkInfo.ID)
 
 	vc := n.vclock.Copy()
 	time, _ := vc.TimeUint64(n.networkInfo.ID)
@@ -322,7 +322,7 @@ func (n *Node) commitTx(msg *broadcast.Message) {
 }
 
 func (n *Node) commitSnapshotRequest(msg *broadcast.Message) {
-	_, ok := msg.Data.(*broadcast.SnapshotRequest)
+	req, ok := msg.Data.(*broadcast.SnapshotRequest)
 	if !ok {
 		n.logger.Error(
 			"couldn't commit snapshot request, data type not snapshot request",
@@ -332,10 +332,10 @@ func (n *Node) commitSnapshotRequest(msg *broadcast.Message) {
 
 	n.processed[msg.From] = append(n.processed[msg.From], msg)
 	n.vclock.TickUint64(msg.From)
-	n.broadcastSnapshotState(context.Background(), msg.From)
+	n.broadcastSnapshotState(context.Background(), msg.From, req.Token)
 }
 
-func (n *Node) broadcastSnapshotState(ctx context.Context, to uint64) {
+func (n *Node) broadcastSnapshotState(ctx context.Context, to uint64, token string) {
 	defer n.snapshotMutex.Unlock()
 	n.snapshotMutex.Lock()
 
@@ -346,6 +346,7 @@ func (n *Node) broadcastSnapshotState(ctx context.Context, to uint64) {
 	time, _ := vc.TimeUint64(n.networkInfo.ID)
 
 	state := n.State()
+	state.Token = token
 
 	msg := &broadcast.Message{
 		ID:     time,
@@ -378,13 +379,42 @@ func (n *Node) commitSnapshotState(msg *broadcast.Message) {
 	defer n.snapshotMutex.Unlock()
 	n.snapshotMutex.Lock()
 
-	_ = st
-	n.snapshots["TODO"].AddState(st)
-	if n.snapshots["TODO"].Finished() {
-		n.finishSnapshot()
+	n.snapshots[st.Token].AddState(st, msg.From)
+	if n.snapshots[st.Token].Finished() {
+		n.finishSnapshot(st.Token)
 	}
 }
 
-func (n *Node) finishSnapshot() {
+func (n *Node) finishSnapshot(token string) {
+	ss := n.snapshots[token]
+	states, cErr := ss.GetStates()
+	if cErr.IsNotNil() {
+		n.logger.Fatal("finished snapshot not finished")
+	}
 
+	global := uint64(0)
+	for _, v := range states {
+		global += v.BitcakeBalance
+		for ks, vs := range v.Sent {
+			for _, smsg := range vs {
+				has := false
+				for _, rmsg := range states[ks].Recd[ks] {
+					if rmsg.ID == smsg.ID {
+						has = true
+						break
+					}
+				}
+				tx, ok := smsg.Data.(*broadcast.Transaction)
+				if !ok {
+					n.logger.Error("coudln't cast to transaction on finish snapshot")
+					continue
+				}
+				if !has {
+					n.logger.Info("[channel] bitcakes found", "bitcakes", tx.Bitcakes)
+				}
+			}
+		}
+	}
+
+	n.logger.Info("[snapshot] global", "global", global)
 }

@@ -30,6 +30,7 @@ message State {
 	uint64 bitcakes = 1;
 	repeated StateKVPairs sent = 2;
 	repeated StateKVPairs received = 3;
+	string token = 4;
 }
 
 message Message {
