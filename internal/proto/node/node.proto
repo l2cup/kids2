@@ -2,23 +2,40 @@ syntax = "proto3";
 
 option go_package = "github.com/l2cup/kids2/internal/proto/node";
 import "google/protobuf/empty.proto";
+import "network/network.proto";
+import "vc/vc.proto";
 
 package node;
 
-message NetworkInfo {
-	uint64 id = 1;
-	string ip_addr = 2;
-	int32 port = 3;
+message Configuration {
+	network.Info network_info = 1;
+	uint64 total_node_count = 2;
+	repeated network.Info connected_nodes = 3;
 }
 
-message Configuration {
-	NetworkInfo network_info = 1;
-	uint64 TotalNodeCount = 2;
-	repeated NetworkInfo connected_nodes = 3;
+message Transaction {
+	uint64 bitcakes = 1;
+}
+
+message Snapshot {
+	repeated uint64 sent = 2;
+	repeated uint64 received = 3;
+}
+
+message Message {
+	uint64 id = 1;
+	network.Info from = 2;
+	network.Info to = 3;
+	vc.VectorClock vclock = 4;
+	oneof type {
+		Transaction transaction = 5;
+		Snapshot snapshot = 6;
+	}
 }
 
 service Node {
-	rpc Introduce(NetworkInfo) returns (NetworkInfo);
+	rpc Transaction(Message) returns (google.protobuf.Empty);
+	rpc Snapshot(Message) returns (google.protobuf.Empty);
 }
 
 service Bootstrap {

@@ -1,6 +1,6 @@
 #!/bin/bash
 
-protos=( "node" "errors" )
+protos=( "vc" "network" "node" "errors")
 
 # shellcheck disable=SC2068
 for t in ${protos[@]}; do

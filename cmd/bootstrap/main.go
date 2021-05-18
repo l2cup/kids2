@@ -13,7 +13,7 @@ func main() {
 		golog.Fatal(err)
 	}
 
-	_, cErr := node.NewBootstrap(logger, "../config.json")
+	_, cErr := node.NewBootstrap(logger, "./config.json")
 	if cErr.IsNotNil() {
 		golog.Fatal(cErr)
 	}

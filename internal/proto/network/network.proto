@@ -1,0 +1,11 @@
+syntax = "proto3";
+
+option go_package = "github.com/l2cup/kids2/internal/proto/network";
+
+package network;
+
+message Info {
+	uint64 id = 1;
+	string ip_addr = 2;
+	int32 port = 3;
+}

@@ -5,18 +5,19 @@ import (
 	"os"
 
 	"github.com/l2cup/kids2/internal/errors"
+	"github.com/l2cup/kids2/pkg/network"
 )
 
-type topologyConfiguration struct {
+type topology struct {
 	TotalNodeCount uint64 `json:"node_count"`
 	Clique         bool   `json:"clique"`
 	Nodes          []*struct {
-		*NetworkInfo
+		*network.Info
 		ConnectedNodes []uint64 `json:"connected_nodes"`
 	} `json:"nodes"`
 }
 
-func parseTopologyConfiguration(b *Bootstrap, path string) errors.Error {
+func parseAndSetTopologyConfiguration(b *Bootstrap, path string) errors.Error {
 	data, err := os.ReadFile(path)
 	if err != nil {
 		return errors.NewInternalError(
@@ -39,13 +40,13 @@ func parseTopologyConfiguration(b *Bootstrap, path string) errors.Error {
 
 	cfgs := make([]*Configuration, 0, len(cfgFile.Nodes))
 	for i := range cfgs {
-		cfgs[i].ConnectedNodes = make([]*NetworkInfo, 0)
+		cfgs[i].ConnectedNodes = make([]*network.Info, 0)
 	}
 
 	cfgMap := make(map[uint64]*Configuration, len(cfgs))
 	for _, node := range cfgFile.Nodes {
 		cfg := &Configuration{
-			NetworkInfo: &NetworkInfo{
+			NetworkInfo: &network.Info{
 				ID:     node.ID,
 				IPAddr: node.IPAddr,
 				Port:   node.Port,

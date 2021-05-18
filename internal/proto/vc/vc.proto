@@ -1,0 +1,13 @@
+syntax = "proto3";
+
+option go_package = "github.com/l2cup/kids2/internal/proto/vc";
+package vc;
+
+message Entry {
+	uint64 key = 1;
+	uint64 value = 2;
+}
+
+message VectorClock {
+	repeated Entry kv_pairs = 1;
+}
