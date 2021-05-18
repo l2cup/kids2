@@ -18,14 +18,15 @@ message Transaction {
 }
 
 message Snapshot {
+	uint64 bitcakes = 1;
 	repeated uint64 sent = 2;
 	repeated uint64 received = 3;
 }
 
 message Message {
 	uint64 id = 1;
-	network.Info from = 2;
-	network.Info to = 3;
+	uint64 from = 2;
+	uint64 to = 3;
 	vc.VectorClock vclock = 4;
 	oneof type {
 		Transaction transaction = 5;

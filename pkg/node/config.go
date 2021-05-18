@@ -8,7 +8,7 @@ import (
 	"github.com/l2cup/kids2/pkg/network"
 )
 
-type topology struct {
+type topologyConfiguration struct {
 	TotalNodeCount uint64 `json:"node_count"`
 	Clique         bool   `json:"clique"`
 	Nodes          []*struct {
@@ -38,14 +38,14 @@ func parseAndSetTopologyConfiguration(b *Bootstrap, path string) errors.Error {
 		)
 	}
 
-	cfgs := make([]*Configuration, 0, len(cfgFile.Nodes))
+	cfgs := make([]*network.Configuration, 0, len(cfgFile.Nodes))
 	for i := range cfgs {
 		cfgs[i].ConnectedNodes = make([]*network.Info, 0)
 	}
 
-	cfgMap := make(map[uint64]*Configuration, len(cfgs))
+	cfgMap := make(map[uint64]*network.Configuration, len(cfgs))
 	for _, node := range cfgFile.Nodes {
-		cfg := &Configuration{
+		cfg := &network.Configuration{
 			NetworkInfo: &network.Info{
 				ID:     node.ID,
 				IPAddr: node.IPAddr,

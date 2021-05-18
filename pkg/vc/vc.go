@@ -18,7 +18,10 @@ type VectorClock struct {
 }
 
 func New() *VectorClock {
-	return &VectorClock{}
+	return &VectorClock{
+		mutex:  sync.Mutex{},
+		vclock: make(map[string]uint64),
+	}
 }
 
 func (vc *VectorClock) TimeUint64(ID uint64) (uint64, bool) {
@@ -53,19 +56,55 @@ func (vc *VectorClock) SetUint64(ID, time uint64) {
 	vc.vclock[idString] = time
 }
 
-func (vc *VectorClock) Tick(ID string, time uint64) {
+func (vc *VectorClock) Tick(ID string) {
 	defer vc.mutex.Unlock()
 	vc.mutex.Lock()
 
 	vc.vclock[ID] += 1
 }
 
-func (vc *VectorClock) TickUint64(ID, time uint64) {
+func (vc *VectorClock) TickUint64(ID uint64) {
 	defer vc.mutex.Unlock()
 	vc.mutex.Lock()
 
 	idString := strconv.FormatUint(ID, 10)
 	vc.vclock[idString] += 1
+}
+
+func (vc *VectorClock) Copy() *VectorClock {
+	defer vc.mutex.Unlock()
+	vc.mutex.Lock()
+
+	vcCopy := New()
+	for k, v := range vc.vclock {
+		vcCopy.vclock[k] = v
+	}
+
+	return vcCopy
+}
+
+func (vc *VectorClock) Map() map[string]uint64 {
+	return vc.vclock
+}
+
+func (vc *VectorClock) IsDescendantOrEqual(other *VectorClock) bool {
+	defer vc.mutex.Unlock()
+	vc.mutex.Lock()
+
+	if len(other.vclock) > len(other.vclock) {
+		return false
+	}
+
+	is := true
+	for k, v := range vc.vclock {
+		otherVal := other.vclock[k]
+		if otherVal > v {
+			is = false
+			break
+		}
+	}
+
+	return is
 }
 
 func (vc *VectorClock) Proto() *vcpb.VectorClock {

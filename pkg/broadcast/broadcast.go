@@ -9,7 +9,7 @@ import (
 	"github.com/l2cup/kids2/pkg/network"
 )
 
-type BroadcastFunc func(message *Message, node *network.Info)
+type broadcastFunc func(message *Message, node *network.Info)
 
 type Broadcast struct {
 	logger *log.Logger
@@ -30,9 +30,9 @@ func (b *Broadcast) Broadcast(message *Message, nodes []*network.Info) {
 	}
 }
 
-func (b *Broadcast) broadcast(message *Message, nodes []*network.Info, fn BroadcastFunc) {
+func (b *Broadcast) broadcast(message *Message, nodes []*network.Info, bf broadcastFunc) {
 	for _, node := range nodes {
-		go fn(message, node)
+		go bf(message, node)
 	}
 }
 
@@ -63,7 +63,7 @@ func (b *Broadcast) broadcastSnapshot(message *Message, node *network.Info) {
 	conn, cErr := network.DialGRPC(node)
 	if cErr.IsNotNil() {
 		b.logger.Error(
-			"[broadcast] couldn't broadcast transaction",
+			"[broadcast] couldn't broadcast snapshot",
 			"err", cErr,
 			"node", node,
 		)
@@ -76,7 +76,7 @@ func (b *Broadcast) broadcastSnapshot(message *Message, node *network.Info) {
 	_, err := client.Snapshot(ctx, message.Proto())
 	if err != nil {
 		b.logger.Error(
-			"[broadcast] transaction broadcast failed",
+			"[broadcast] snapshot broadcast failed",
 			"err", err,
 		)
 	}

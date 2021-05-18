@@ -7,7 +7,9 @@ import (
 
 	"github.com/l2cup/kids2/internal/log"
 	nodepb "github.com/l2cup/kids2/internal/proto/node"
+	"github.com/l2cup/kids2/pkg/broadcast"
 	"github.com/l2cup/kids2/pkg/network"
+	"github.com/l2cup/kids2/pkg/vc"
 	"google.golang.org/grpc"
 	emptypb "google.golang.org/protobuf/types/known/emptypb"
 )
@@ -15,12 +17,14 @@ import (
 type Manager struct {
 	logger        *log.Logger
 	bootstrapInfo *network.Info
+	broadcast     *broadcast.Broadcast
 }
 
 func NewManager(logger *log.Logger, bootstrapInfo *network.Info) *Manager {
 	return &Manager{
 		logger:        logger,
 		bootstrapInfo: bootstrapInfo,
+		broadcast:     broadcast.NewBroadcast(logger),
 	}
 }
 
@@ -29,10 +33,16 @@ func (m *Manager) NewNode() *Node {
 		bitcakeBalance: uint64(1000 + rand.Intn(5000)),
 		logger:         m.logger,
 		bootstrapInfo:  m.bootstrapInfo,
+		vclock:         vc.New(),
+		sent:           make(map[uint64][]*broadcast.Message),
+		recd:           make(map[uint64][]*broadcast.Message),
+		broadcast:      m.broadcast,
 	}
 
 	m.mustRegisterNode(node)
 	go m.startgRPCServer(node)
+
+	m.logger.Debug("node debug", "node", node)
 	return node
 }
 
